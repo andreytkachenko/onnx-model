@@ -2,7 +2,7 @@ use ndarray_stats::QuantileExt;
 
 fn main() {
     let arg = std::env::args().nth(1).unwrap();
-    let device = onnx_model::get_cuda_if_available(None);
+    let device = onnx_model::get_cuda_if_available();
     println!("Using: {:?}", device);
 
     let model = onnx_model::OnnxInferenceModel::new("./examples/models/resnet18-v2-7.onnx", device).unwrap();

@@ -1,4 +1,4 @@
-use crate::cuda_info::{CudaDevice, list_of_cuda_devices};
+use crate::cuda_info;
 use crate::error::Error;
 
 use onnxruntime::{Arguments, Env, ExecutionMode, LoggingLevel, RunOptions, Session, SessionOptions, SymbolicDim, Tensor, TensorView, Val};
@@ -17,29 +17,63 @@ lazy_static! {
 
 pub const MODEL_DYNAMIC_INPUT_DIMENSION: i64 = -1;
 
-#[derive(Debug, Clone)]
-#[non_exhaustive]
-pub enum OnnxInferenceDevice {
-    Cpu(bool),
-    Cuda(CudaDevice),
-    TensorRT(CudaDevice),
+pub fn get_cuda_if_available() -> InferenceDevice {
+    let devices = get_inference_devices();
+    let mut device: Option<InferenceDevice> = None; 
+
+    for d in devices {
+        if let Some(id) = &mut device {
+            if id.device_type == "CPU" {
+                 *id = d;
+            } else if id.device_type != "CUDA" {
+                if d.device_type == "CUDA" {
+                    *id = d;
+                }
+            }
+        } else {
+            device = Some(d)
+        }
+    }
+
+    device.unwrap()
 }
 
-pub fn get_cuda_if_available(device_index: Option<usize>) -> OnnxInferenceDevice {
-    let devices = list_of_cuda_devices();
-    let device_index = device_index.unwrap_or(0);
-    
-    if let Some(d) = devices.into_iter().nth(device_index) {
-        if cfg!(feature = "tensorrt") {
-            OnnxInferenceDevice::TensorRT(d)
-        } else if cfg!(feature = "cuda") {
-            OnnxInferenceDevice::Cuda(d)
-        } else {
-            OnnxInferenceDevice::Cpu(true)
+pub fn get_inference_devices() -> impl Iterator<Item = InferenceDevice> {
+    let mut vec: SmallVec<[InferenceDevice; 8]> = SmallVec::new();
+
+    for p in SessionOptions::available_providers() {
+        match p.as_str() {
+            "CPUExecutionProvider" => {
+                vec.push(InferenceDevice {
+                    provider: p.as_str().into(),
+                    device_id: "0".into(),
+                    device_type: "CPU".into(),
+                    device_name: "CPU".into(),
+                });
+
+                vec.push(InferenceDevice {
+                    provider: p.as_str().into(),
+                    device_id: "1".into(),
+                    device_type: "CPU".into(),
+                    device_name: "Parallel CPU".into(),
+                });
+            },
+            "CUDAExecutionProvider" => {
+                for i in cuda_info::list_of_cuda_devices() {
+                    vec.push(InferenceDevice {
+                        provider: p.as_str().into(),
+                        device_id: i.index.to_string().into(),
+                        device_type: "CUDA".into(),
+                        device_name: i.name.into(),
+                    })
+                }
+            },
+
+            _ => ()
         }
-    } else {
-        OnnxInferenceDevice::Cpu(true)
     }
+
+    vec.into_iter()
 }
 
 #[derive(Clone)]
@@ -95,9 +129,12 @@ impl fmt::Debug for TensorInfo {
     }
 }
 
+#[derive(Debug)]
 pub struct InferenceDevice {
-    name: SmallString<[u8; 32]>,
-    index: usize
+    provider: SmallString<[u8; 24]>,
+    device_id: SmallString<[u8; 24]>,
+    device_type: SmallString<[u8; 24]>,
+    device_name: SmallString<[u8; 24]>,
 }
 
 pub struct OnnxInferenceModel {
@@ -108,22 +145,26 @@ pub struct OnnxInferenceModel {
 }
 
 impl OnnxInferenceModel {
-    pub fn new(model_filename: &str, device: OnnxInferenceDevice) -> std::result::Result<Self, Error> {
+    pub fn new(model_filename: &str, device: InferenceDevice) -> std::result::Result<Self, Error> {
         let mut so = SessionOptions::new()?;
         let ro = RunOptions::new();
 
-        if let OnnxInferenceDevice::Cpu(is_parallel) = device {
-            if is_parallel {
-                so.set_execution_mode(ExecutionMode::Parallel).unwrap();
-            }
+        match device.device_type.as_str() {
+            "CPU" => {
+                match device.device_id.as_str() {
+                    "0" => { so.set_execution_mode(ExecutionMode::Sequential).unwrap(); },
+                    "1" => { so.set_execution_mode(ExecutionMode::Parallel).unwrap(); },
+                    _ => ()
+                }
 
-            so.add_cpu(true);
-        } else if let OnnxInferenceDevice::Cuda(device) = device {
-            so.add_cuda(device.index as _);
-        } else if let OnnxInferenceDevice::TensorRT(_device) = device {
-            // so.add_tensorrt(device.index as _);
-        } else {
-            unimplemented!("only cuda, tensorrt and cpu implemented now!");
+                so.add_cpu(true);
+            },
+
+            "CUDA" => {
+                so.add_cuda(device.device_id.parse().unwrap());
+            },
+
+            _ => unimplemented!()
         }
 
         let session = Session::new(&ORT_ENV, model_filename, &so).unwrap();
@@ -136,27 +177,6 @@ impl OnnxInferenceModel {
             output_infos,
             run_options: ro
         })
-    }
-
-    pub fn get_inference_devices(&self) -> impl Iterator<Item = InferenceDevice> {
-            core::iter::once(InferenceDevice {
-                name: "CPU".into(),
-                index: 0
-            }).chain(
-                core::iter::once(InferenceDevice {
-                    name: "Parallel CPU".into(),
-                    index: 1
-                }).chain(
-                    core::iter::once(InferenceDevice {
-                        name: "CUDA:0".into(),
-                        index: 2
-                    }).chain(core::iter::once(InferenceDevice {
-                        name: "TensorRT:0".into(),
-                        index: 3
-                    }),
-                )
-            )
-        )
     }
 
     #[inline]
