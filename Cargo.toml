@@ -1,21 +1,29 @@
 [package]
 name = "onnx-model"
-version = "0.1.0"
+version = "0.2.0"
 authors = ["Andrey Tkachenko <andrey@aidev.ru>"]
 edition = "2018"
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+description = "ONNX Inference Model Executor Abstraction"
+tags = ["onnx", "onnxruntime", "inference", "tract"]
 
 [dependencies]
-thiserror = "1.0"
-onnxruntime = {version="0.1", git="https://github.com/andreytkachenko/onnxruntime-rs.git"}
-lazy_static = "1.4.0"
-glob = "0.3.0"
-smallvec = "1.6.1"
-rustacuda = {version = "0.1.2", optional = true}
-ndarray = "0.14.0"
-arrayvec = "0.5.2"
+thiserror = "1"
+lazy_static = "1.4"
+smallvec = "1.6"
+ndarray = "0.14"
+arrayvec = "0.5"
+smallstr = "0.2"
+
+rustacuda = {version = "0.1", optional = true}
+onnxruntime = {version="0.1", git="https://github.com/andreytkachenko/onnxruntime-rs.git", optional = true}
 
 [features]
+default = ["ort-backend"]
 cuda = ["rustacuda"]
 tensorrt = []
+ort-backend = ["onnxruntime"]
+# tract-backend = ["tract"]
+
+[dev-dependencies]
+image = "0.23.12"
+ndarray-stats = "0.4.0"
