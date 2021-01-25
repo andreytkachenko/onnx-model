@@ -17,25 +17,28 @@ lazy_static! {
 
 pub const MODEL_DYNAMIC_INPUT_DIMENSION: i64 = -1;
 
-pub fn get_cuda_if_available() -> InferenceDevice {
+pub fn get_cuda_if_available(gpu_index: Option<usize>) -> InferenceDevice {
     let devices = get_inference_devices();
-    let mut device: Option<InferenceDevice> = None; 
+    let mut cpu_device: Option<InferenceDevice> = None; 
+    let mut cuda_device: Option<InferenceDevice> = None; 
 
     for d in devices {
-        if let Some(id) = &mut device {
-            if id.device_type == "CPU" {
-                 *id = d;
-            } else if id.device_type != "CUDA" {
-                if d.device_type == "CUDA" {
-                    *id = d;
+        match d.device_type.as_str() {
+            "CPU" => { cpu_device.replace(d); },
+            "CUDA" => if let Some(idx) = gpu_index {
+                if idx == d.device_id.parse::<usize>().unwrap() {
+                    cuda_device.replace(d);
                 }
-            }
-        } else {
-            device = Some(d)
+            } else {
+                if cuda_device.is_none() {
+                    cuda_device.replace(d);
+                }
+            },
+            _ => ()
         }
     }
 
-    device.unwrap()
+    cuda_device.or(cpu_device).unwrap()
 }
 
 pub fn get_inference_devices() -> impl Iterator<Item = InferenceDevice> {
@@ -129,7 +132,7 @@ impl fmt::Debug for TensorInfo {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct InferenceDevice {
     provider: SmallString<[u8; 24]>,
     device_id: SmallString<[u8; 24]>,
