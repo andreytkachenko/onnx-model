@@ -142,7 +142,6 @@ pub struct InferenceDevice {
 
 pub struct OnnxInferenceModel {
     session: Session,
-    run_options: RunOptions,
     input_infos: SmallVec<[TensorInfo; 4]>,
     output_infos: SmallVec<[TensorInfo; 4]>,
 }
@@ -150,7 +149,6 @@ pub struct OnnxInferenceModel {
 impl OnnxInferenceModel {
     pub fn new(model_filename: &str, device: InferenceDevice) -> std::result::Result<Self, Error> {
         let mut so = SessionOptions::new()?;
-        let ro = RunOptions::new();
 
         match device.device_type.as_str() {
             "CPU" => {
@@ -178,7 +176,6 @@ impl OnnxInferenceModel {
             session,
             input_infos,
             output_infos,
-            run_options: ro
         })
     }
 
@@ -206,10 +203,10 @@ impl OnnxInferenceModel {
             .collect();
 
         let in_vals_refs: SmallVec<[&Val; 8]> = in_vals_views.iter().map(|x| x.as_ref()).collect();
-
+        let ro = RunOptions::new();
         let out_vals = self.session
             .run_raw(
-                &self.run_options,
+                &ro,
                 in_names.as_slice(),
                 in_vals_refs.as_slice(),
                 out_names.as_slice(),
