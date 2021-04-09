@@ -12,7 +12,7 @@ license = "Apache-2.0/MIT"
 thiserror = "1"
 lazy_static = "1.4"
 smallvec = "1.6"
-ndarray = "0.13"
+ndarray = "0.14"
 arrayvec = "0.5"
 smallstr = "0.2"
 
