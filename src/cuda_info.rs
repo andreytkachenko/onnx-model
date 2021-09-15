@@ -1,4 +1,3 @@
-use arrayvec::ArrayVec;
 use std::fmt;
 
 
@@ -43,9 +42,4 @@ pub (crate) fn list_of_cuda_devices() -> ArrayVec<[CudaDevice; 8]> {
     }
 
     res
-}
-
-#[cfg(all(not(feature = "cuda"), not(feature = "tensorrt")))]
-pub (crate) fn list_of_cuda_devices() -> ArrayVec<[CudaDevice; 8]> {
-    ArrayVec::new()
 }

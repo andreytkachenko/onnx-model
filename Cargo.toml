@@ -12,20 +12,16 @@ license = "Apache-2.0/MIT"
 thiserror = "1"
 lazy_static = "1.4"
 smallvec = "1.6"
-ndarray = "0.13"
-arrayvec = "0.5"
+ndarray = "0.15"
 smallstr = "0.2"
-
-rustacuda = {version = "0.1", optional = true}
-onnxruntime = {git="https://github.com/andreytkachenko/onnxruntime-rs.git", branch="v1.7", optional = true}
+onnxruntime = {git="https://github.com/andreytkachenko/onnxruntime-rs.git", branch="v1.8", optional = true}
 
 [features]
 default = ["ort-backend"]
-cuda = ["rustacuda"]
 tensorrt = []
 ort-backend = ["onnxruntime"]
 # tract-backend = ["tract"]
 
 [dev-dependencies]
 image = "0.23.12"
-ndarray-stats = "0.4.0"
+ndarray-stats = "0.5.0"

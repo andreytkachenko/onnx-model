@@ -1,4 +1,3 @@
-use crate::cuda_info;
 use crate::error::Error;
 
 use onnxruntime::{Arguments, Env, ExecutionMode, LoggingLevel, RunOptions, Session, SessionOptions, SymbolicDim, Tensor, TensorView, Val};
@@ -53,24 +52,24 @@ pub fn get_inference_devices() -> impl Iterator<Item = InferenceDevice> {
                     device_type: "CPU".into(),
                     device_name: "CPU".into(),
                 });
-
-                vec.push(InferenceDevice {
-                    provider: p.as_str().into(),
-                    device_id: "1".into(),
-                    device_type: "CPU".into(),
-                    device_name: "Parallel CPU".into(),
-                });
             },
             "CUDAExecutionProvider" => {
-                for i in cuda_info::list_of_cuda_devices() {
-                    vec.push(InferenceDevice {
-                        provider: p.as_str().into(),
-                        device_id: i.index.to_string().into(),
-                        device_type: "CUDA".into(),
-                        device_name: i.name.into(),
-                    })
-                }
+                vec.push(InferenceDevice {
+                    provider: p.as_str().into(),
+                    device_id: "0".into(),
+                    device_type: "CUDA".into(),
+                    device_name: "CUDA0".into(),
+                })
             },
+
+            "TensorrtExecutionProvider" => {
+                vec.push(InferenceDevice {
+                    provider: p.as_str().into(),
+                    device_id: "0".into(),
+                    device_type: "TensorRt".into(),
+                    device_name: "TRT0".into(),
+                })
+            }
 
             _ => ()
         }
