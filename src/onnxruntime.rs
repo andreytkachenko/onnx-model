@@ -16,31 +16,46 @@ lazy_static! {
 
 pub const MODEL_DYNAMIC_INPUT_DIMENSION: i64 = -1;
 
-pub fn get_cuda_if_available(gpu_index: Option<usize>) -> InferenceDevice {
-    let devices = get_inference_devices();
-    let mut cpu_device: Option<InferenceDevice> = None; 
-    let mut cuda_device: Option<InferenceDevice> = None; 
 
-    for d in devices {
-        match d.device_type.as_str() {
-            "CPU" => { cpu_device.replace(d); },
-            "CUDA" => if let Some(idx) = gpu_index {
-                if idx == d.device_id.parse::<usize>().unwrap() {
-                    cuda_device.replace(d);
-                }
-            } else {
-                if cuda_device.is_none() {
-                    cuda_device.replace(d);
-                }
-            },
-            _ => ()
+pub struct InferenceDeviceList(SmallVec<[InferenceDevice; 8]>);
+
+impl InferenceDeviceList {
+    pub fn cuda_fallback_to_cpu(&self, gpu_index: Option<usize>) -> InferenceDevice {
+        let mut cpu_device: Option<usize> = None; 
+        let mut cuda_device: Option<usize> = None; 
+    
+        for (i, d) in self.0.iter().enumerate() {
+            match d.device_type.as_str() {
+                "CPU" => { cpu_device.replace(i); },
+                "CUDA" => if let Some(idx) = gpu_index {
+                    if idx == d.device_id.parse::<usize>().unwrap() {
+                        cuda_device.replace(i);
+                    }
+                } else {
+                    if cuda_device.is_none() {
+                        cuda_device.replace(i);
+                    }
+                },
+                _ => ()
+            }
         }
+
+        self.0[cuda_device.or(cpu_device).unwrap()].clone()
     }
 
-    cuda_device.or(cpu_device).unwrap()
+    pub fn cpu(&self) -> InferenceDevice {
+        for d in &self.0 {
+            match d.device_type.as_str() {
+                "CPU" => { return d.clone() },
+                _ => ()
+            }
+        }
+        
+        unreachable!()
+    }
 }
 
-pub fn get_inference_devices() -> impl Iterator<Item = InferenceDevice> {
+pub fn get_inference_devices() -> InferenceDeviceList {
     let mut vec: SmallVec<[InferenceDevice; 8]> = SmallVec::new();
 
     for p in SessionOptions::available_providers() {
@@ -66,7 +81,7 @@ pub fn get_inference_devices() -> impl Iterator<Item = InferenceDevice> {
                 vec.push(InferenceDevice {
                     provider: p.as_str().into(),
                     device_id: "0".into(),
-                    device_type: "TensorRt".into(),
+                    device_type: "TensorRT".into(),
                     device_name: "TRT0".into(),
                 })
             }
@@ -75,7 +90,7 @@ pub fn get_inference_devices() -> impl Iterator<Item = InferenceDevice> {
         }
     }
 
-    vec.into_iter()
+    InferenceDeviceList(vec)
 }
 
 #[derive(Clone)]
