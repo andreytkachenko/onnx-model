@@ -14,7 +14,7 @@ lazy_static = "1.4"
 smallvec = "1.6"
 ndarray = "0.15"
 smallstr = "0.2"
-onnxruntime = {git="https://github.com/andreytkachenko/onnxruntime-rs.git", branch="v1.8", optional = true}
+onnxruntime = {git="https://github.com/andreytkachenko/onnxruntime-rs.git", branch="v1.10", optional = true}
 
 [features]
 default = ["ort-backend"]
