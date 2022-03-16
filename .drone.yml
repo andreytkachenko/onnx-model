@@ -1,0 +1,13 @@
+kind: pipeline
+name: default
+
+steps:
+- name: build
+  image: hub.aidev.ru/rust-onnxruntime
+  commands:
+    - cargo build --verbose --all
+
+- name: fmt-check
+  image: hub.aidev.ru/rust-onnxruntime
+  commands:
+    - cargo fmt --all -- --check

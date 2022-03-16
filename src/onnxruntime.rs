@@ -1,11 +1,14 @@
 use crate::error::Error;
 
-use onnxruntime::{Arguments, Env, ExecutionMode, LoggingLevel, RunOptions, Session, SessionOptions, SymbolicDim, Tensor, TensorView, Val};
+use onnxruntime::{
+    Arguments, Env, ExecutionMode, LoggingLevel, RunOptions, Session, SessionOptions, SymbolicDim,
+    Tensor, TensorView, Val,
+};
 
-use ndarray::prelude::*;
 use lazy_static::lazy_static;
-use smallvec::SmallVec;
+use ndarray::prelude::*;
 use smallstr::SmallString;
+use smallvec::SmallVec;
 
 use core::fmt;
 use std::ffi::CString;
@@ -16,27 +19,30 @@ lazy_static! {
 
 pub const MODEL_DYNAMIC_INPUT_DIMENSION: i64 = -1;
 
-
 pub struct InferenceDeviceList(SmallVec<[InferenceDevice; 8]>);
 
 impl InferenceDeviceList {
     pub fn cuda_fallback_to_cpu(&self, gpu_index: Option<usize>) -> InferenceDevice {
-        let mut cpu_device: Option<usize> = None; 
-        let mut cuda_device: Option<usize> = None; 
-    
+        let mut cpu_device: Option<usize> = None;
+        let mut cuda_device: Option<usize> = None;
+
         for (i, d) in self.0.iter().enumerate() {
             match d.device_type.as_str() {
-                "CPU" => { cpu_device.replace(i); },
-                "CUDA" => if let Some(idx) = gpu_index {
-                    if idx == d.device_id.parse::<usize>().unwrap() {
-                        cuda_device.replace(i);
+                "CPU" => {
+                    cpu_device.replace(i);
+                }
+                "CUDA" => {
+                    if let Some(idx) = gpu_index {
+                        if idx == d.device_id.parse::<usize>().unwrap() {
+                            cuda_device.replace(i);
+                        }
+                    } else {
+                        if cuda_device.is_none() {
+                            cuda_device.replace(i);
+                        }
                     }
-                } else {
-                    if cuda_device.is_none() {
-                        cuda_device.replace(i);
-                    }
-                },
-                _ => ()
+                }
+                _ => (),
             }
         }
 
@@ -46,11 +52,11 @@ impl InferenceDeviceList {
     pub fn cpu(&self) -> InferenceDevice {
         for d in &self.0 {
             match d.device_type.as_str() {
-                "CPU" => { return d.clone() },
-                _ => ()
+                "CPU" => return d.clone(),
+                _ => (),
             }
         }
-        
+
         unreachable!()
     }
 }
@@ -67,26 +73,22 @@ pub fn get_inference_devices() -> InferenceDeviceList {
                     device_type: "CPU".into(),
                     device_name: "CPU".into(),
                 });
-            },
-            "CUDAExecutionProvider" => {
-                vec.push(InferenceDevice {
-                    provider: p.as_str().into(),
-                    device_id: "0".into(),
-                    device_type: "CUDA".into(),
-                    device_name: "CUDA0".into(),
-                })
-            },
-
-            "TensorrtExecutionProvider" => {
-                vec.push(InferenceDevice {
-                    provider: p.as_str().into(),
-                    device_id: "0".into(),
-                    device_type: "TensorRT".into(),
-                    device_name: "TRT0".into(),
-                })
             }
+            "CUDAExecutionProvider" => vec.push(InferenceDevice {
+                provider: p.as_str().into(),
+                device_id: "0".into(),
+                device_type: "CUDA".into(),
+                device_name: "CUDA0".into(),
+            }),
 
-            _ => ()
+            "TensorrtExecutionProvider" => vec.push(InferenceDevice {
+                provider: p.as_str().into(),
+                device_id: "0".into(),
+                device_type: "TensorRT".into(),
+                device_name: "TRT0".into(),
+            }),
+
+            _ => (),
         }
     }
 
@@ -115,7 +117,7 @@ impl fmt::Display for TensorShapeInfo {
         }
 
         write!(f, ")")?;
-        
+
         Ok(())
     }
 }
@@ -167,19 +169,23 @@ impl OnnxInferenceModel {
         match device.device_type.as_str() {
             "CPU" => {
                 match device.device_id.as_str() {
-                    "0" => { so.set_execution_mode(ExecutionMode::Sequential).unwrap(); },
-                    "1" => { so.set_execution_mode(ExecutionMode::Parallel).unwrap(); },
-                    _ => ()
+                    "0" => {
+                        so.set_execution_mode(ExecutionMode::Sequential).unwrap();
+                    }
+                    "1" => {
+                        so.set_execution_mode(ExecutionMode::Parallel).unwrap();
+                    }
+                    _ => (),
                 }
 
                 so.add_cpu(true);
-            },
+            }
 
             "CUDA" => {
                 so.add_cuda(device.device_id.parse().unwrap());
-            },
+            }
 
-            _ => unimplemented!()
+            _ => unimplemented!(),
         }
 
         let session = Session::new(&ORT_ENV, model_filename, &so).unwrap();
@@ -203,36 +209,43 @@ impl OnnxInferenceModel {
         self.output_infos.as_slice()
     }
 
-    pub fn run(&self, inputs: &[ArrayViewD<'_, f32>]) -> std::result::Result<SmallVec<[ArrayD<f32>; 4]>, Error> {
+    pub fn run(
+        &self,
+        inputs: &[ArrayViewD<'_, f32>],
+    ) -> std::result::Result<SmallVec<[ArrayD<f32>; 4]>, Error> {
         let mut in_vals: SmallVec<[CowArray<'_, f32, IxDyn>; 8]> = SmallVec::new();
-        let in_names: SmallVec<[_; 8]> = self.input_infos.iter().map(|i|i.name.as_c_str()).collect();
-        let out_names: SmallVec<[_; 8]> = self.output_infos.iter().map(|i|i.name.as_c_str()).collect();
+        let in_names: SmallVec<[_; 8]> =
+            self.input_infos.iter().map(|i| i.name.as_c_str()).collect();
+        let out_names: SmallVec<[_; 8]> = self
+            .output_infos
+            .iter()
+            .map(|i| i.name.as_c_str())
+            .collect();
 
         for i in inputs {
             in_vals.push(i.as_standard_layout());
         }
 
-        let in_vals_views: SmallVec<[_; 8]> = in_vals.iter()
-            .map(|x|TensorView::new(x.shape(), x.as_slice().unwrap()))
+        let in_vals_views: SmallVec<[_; 8]> = in_vals
+            .iter()
+            .map(|x| TensorView::new(x.shape(), x.as_slice().unwrap()))
             .collect();
 
         let in_vals_refs: SmallVec<[&Val; 8]> = in_vals_views.iter().map(|x| x.as_ref()).collect();
         let ro = RunOptions::new();
-        let out_vals = self.session
-            .run_raw(
-                &ro,
-                in_names.as_slice(),
-                in_vals_refs.as_slice(),
-                out_names.as_slice(),
-            )?;
+        let out_vals = self.session.run_raw(
+            &ro,
+            in_names.as_slice(),
+            in_vals_refs.as_slice(),
+            out_names.as_slice(),
+        )?;
 
         let mut tensors: SmallVec<[ArrayD<f32>; 4]> = SmallVec::with_capacity(out_vals.len());
-        
+
         for v in out_vals {
-            let x: Tensor<f32> = v.as_tensor()
-                .map_err(|_| Error::UnsupportedValueType)?;
-            
-            let shape: SmallVec<[usize; 8]> = x.dims().into_iter().map(|&x|x as usize).collect();
+            let x: Tensor<f32> = v.as_tensor().map_err(|_| Error::UnsupportedValueType)?;
+
+            let shape: SmallVec<[usize; 8]> = x.dims().into_iter().map(|&x| x as usize).collect();
 
             tensors.push(ArrayD::from_shape_vec(shape.as_slice(), x.to_vec()).unwrap())
         }
@@ -251,13 +264,13 @@ impl OnnxInferenceModel {
                 for dim in dims {
                     match dim {
                         SymbolicDim::Symbolic(name) => {
-                            dim_names.push(name.to_str().ok().map(|s|s.to_owned()));
+                            dim_names.push(name.to_str().ok().map(|s| s.to_owned()));
                             dim_shape.push(-1i64);
                         }
                         SymbolicDim::Fixed(x) => {
                             dim_names.push(None);
                             dim_shape.push(x as i64);
-                        },
+                        }
                     }
                 }
 

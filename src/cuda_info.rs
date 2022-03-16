@@ -1,6 +1,5 @@
 use std::fmt;
 
-
 #[derive(Clone)]
 pub struct CudaDevice {
     pub index: usize,
@@ -22,7 +21,7 @@ impl fmt::Debug for CudaDevice {
 }
 
 #[cfg(any(feature = "cuda", feature = "tensorrt"))]
-pub (crate) fn list_of_cuda_devices() -> ArrayVec<[CudaDevice; 8]> {
+pub(crate) fn list_of_cuda_devices() -> ArrayVec<[CudaDevice; 8]> {
     use rustacuda::prelude::*;
     let mut res = ArrayVec::new();
 
@@ -31,10 +30,7 @@ pub (crate) fn list_of_cuda_devices() -> ArrayVec<[CudaDevice; 8]> {
             for (index, d) in devices.enumerate() {
                 if let Ok(device) = d {
                     if let Ok(name) = device.name() {
-                        res.push(CudaDevice {
-                            index,
-                            name
-                        })
+                        res.push(CudaDevice { index, name })
                     }
                 }
             }
