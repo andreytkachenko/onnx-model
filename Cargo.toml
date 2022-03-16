@@ -17,7 +17,7 @@ arrayvec = "0.5"
 smallstr = "0.2"
 
 rustacuda = {version = "0.1", optional = true}
-onnxruntime = {version="0.1", git="https://github.com/andreytkachenko/onnxruntime-rs.git", optional = true}
+onnxruntime = {version="0.1", git="https://git.aidev.ru/andrey/onnxruntime-rs.git", optional = true}
 
 [features]
 default = ["ort-backend"]
